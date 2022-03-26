@@ -4,6 +4,8 @@
         -  Data Visualization 
         -  Python
         -  Microsoft.Net 
+        -  Jquery
+        -  Javascript
         -  Power Platform 
         -  SharePoint 
         -  Azure 
