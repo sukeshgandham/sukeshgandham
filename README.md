@@ -18,7 +18,7 @@
 - 💞️ I’m looking to collaborate on Data Visualization
 - 📫 How to reach me 
 - @https://www.linkedin.com/in/sukesh-gandham-04b6a26a/
-- Email: sukesh.gandham@hotmail.com
+- Email: sukesh.gandham@gmail.com
 
 <!---
 sukeshgandham/sukeshgandham is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
