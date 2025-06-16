@@ -1,8 +1,7 @@
 - task: PowerShell@2
-  displayName: 'Append build version to InvestcoRemoteUrl'
+  displayName: 'Generate remote version string'
   inputs:
     targetType: 'inline'
     script: |
-      $originalUrl = "$(InvestcoRemoteUrl)"
-      $versionedUrl = "$originalUrl?v=$(Build.BuildNumber)"
-      Write-Host "##vso[task.setvariable variable=InvestcoRemoteUrl]$versionedUrl"
+      $remoteVersion = "?v=$(Build.BuildNumber)"
+      Write-Host "##vso[task.setvariable variable=remoteVersion]$remoteVersion"
