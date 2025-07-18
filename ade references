@@ -5,41 +5,38 @@ param (
     [string]$outputPath = ".\ADE_References_Report.txt"
 )
 
-# You can update this list if you know specific ADE table names
+# Keywords to search for
 $adeKeywords = @("ADE", "ADE.dbo", "Initial Catalog=ADE", "Catalog=ADE")
 
-# Extensions to include in search
+# Extensions to search
 $fileTypes = "*.vb", "*.config", "*.sql", "*.xml", "*.cs", "*.resx"
 
-# Results
+# Results collection
 $matches = @()
 
-Write-Output "Scanning files in: $repoPath"
+Write-Host "🔍 Scanning files in: $repoPath" -ForegroundColor Cyan
 
 foreach ($ext in $fileTypes) {
     $files = Get-ChildItem -Path $repoPath -Recurse -Include $ext -ErrorAction SilentlyContinue
     foreach ($file in $files) {
-        $content = Get-Content -Path $file.FullName -Raw
         foreach ($keyword in $adeKeywords) {
-            if ($content -match $keyword) {
-                $lines = Select-String -Path $file.FullName -Pattern $keyword
-                foreach ($line in $lines) {
-                    $matches += @{
-                        File = $file.FullName
-                        Line = $line.Line
-                        LineNumber = $line.LineNumber
-                        Keyword = $keyword
-                    }
+            $lines = Select-String -Path $file.FullName -Pattern $keyword -SimpleMatch
+            foreach ($line in $lines) {
+                $matches += [PSCustomObject]@{
+                    File       = $file.FullName
+                    LineNumber = $line.LineNumber
+                    Keyword    = $keyword
+                    MatchedLine = $line.Line.Trim()
                 }
             }
         }
     }
 }
 
-# Write to report
+# Write to file
 "File`tLineNumber`tKeyword`tMatchedLine" | Out-File -FilePath $outputPath
-foreach ($m in $matches) {
-    "$($m.File)`t$($m.LineNumber)`t$($m.Keyword)`t$($m.Line)" | Out-File -FilePath $outputPath -Append
+$matches | ForEach-Object {
+    "$($_.File)`t$($_.LineNumber)`t$($_.Keyword)`t$($_.MatchedLine)" | Out-File -FilePath $outputPath -Append
 }
 
-Write-Output "Report generated at $outputPath"
+Write-Host "`n✅ Report generated at: $outputPath" -ForegroundColor Green
