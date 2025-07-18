@@ -1,0 +1,45 @@
+# File: Find-ADEReferences.ps1
+
+param (
+    [string]$repoPath = ".",
+    [string]$outputPath = ".\ADE_References_Report.txt"
+)
+
+# You can update this list if you know specific ADE table names
+$adeKeywords = @("ADE", "ADE.dbo", "Initial Catalog=ADE", "Catalog=ADE")
+
+# Extensions to include in search
+$fileTypes = "*.vb", "*.config", "*.sql", "*.xml", "*.cs", "*.resx"
+
+# Results
+$matches = @()
+
+Write-Output "Scanning files in: $repoPath"
+
+foreach ($ext in $fileTypes) {
+    $files = Get-ChildItem -Path $repoPath -Recurse -Include $ext -ErrorAction SilentlyContinue
+    foreach ($file in $files) {
+        $content = Get-Content -Path $file.FullName -Raw
+        foreach ($keyword in $adeKeywords) {
+            if ($content -match $keyword) {
+                $lines = Select-String -Path $file.FullName -Pattern $keyword
+                foreach ($line in $lines) {
+                    $matches += @{
+                        File = $file.FullName
+                        Line = $line.Line
+                        LineNumber = $line.LineNumber
+                        Keyword = $keyword
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Write to report
+"File`tLineNumber`tKeyword`tMatchedLine" | Out-File -FilePath $outputPath
+foreach ($m in $matches) {
+    "$($m.File)`t$($m.LineNumber)`t$($m.Keyword)`t$($m.Line)" | Out-File -FilePath $outputPath -Append
+}
+
+Write-Output "Report generated at $outputPath"
