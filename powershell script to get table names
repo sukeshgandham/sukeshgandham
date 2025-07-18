@@ -1,0 +1,19 @@
+# File: Get-ADE-Tables.ps1
+
+$serverName = "localhost"          # Change this to your SQL Server name
+$databaseName = "ADE"
+$outputPath = ".\ADE_Tables.txt"
+
+# Load table list
+$query = @"
+SELECT TABLE_SCHEMA + '.' + TABLE_NAME AS FullTableName
+FROM [$databaseName].INFORMATION_SCHEMA.TABLES
+WHERE TABLE_TYPE = 'BASE TABLE'
+ORDER BY TABLE_NAME
+"@
+
+Invoke-Sqlcmd -ServerInstance $serverName -Database $databaseName -Query $query | 
+    Select-Object -ExpandProperty FullTableName | 
+    Out-File -FilePath $outputPath
+
+Write-Output "Table list saved to: $outputPath"
