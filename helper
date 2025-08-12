@@ -1,0 +1,5 @@
+private roundToWhole(value: number | null | undefined): number {
+  if (value == null) return 0; // default for null/undefined
+  const roundedTo2dp = Math.round(value * 100) / 100; // round to 2 decimal places
+  return Math.round(roundedTo2dp); // final whole number
+}
