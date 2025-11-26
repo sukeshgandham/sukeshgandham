@@ -161,4 +161,161 @@ public async Task<DocumentModel> GetDocumentAsync(string role)
 
 ⸻
 
-If you want, I can also give you a version that supports lists of models automatically (DocumentModel inside a List or array).
+	If you want, I can also give you a version
+ that supports lists of models automatically
+
+
+
+ (DocumentModel inside a List or array).
+
+
+
+
+Here is the generic version that can remove any property from any model for any role, without creating extra DTO classes manually.
+
+This solution is:
+
+✔ Generic
+✔ Works for IEnumerable, List, or a single object
+✔ Removes the property completely from JSON (not null)
+✔ Uses reflection + ExpandoObject
+✔ Very reusable and clean
+
+⸻
+
+✅ 1. Generic Helper: Remove Selected Properties From Any Model
+
+Create a helper file, e.g. /Helpers/ObjectSanitizer.cs
+
+using System.Dynamic;
+using System.Reflection;
+
+public static class ObjectSanitizer
+{
+    /// <summary>
+    /// Removes specified properties from each object in a collection.
+    /// Returns a list of ExpandoObjects ready for JSON serialization.
+    /// </summary>
+    public static IEnumerable<object> RemoveProperties<T>(
+        IEnumerable<T> source,
+        params string[] propertiesToRemove)
+    {
+        var removeSet = new HashSet<string>(
+            propertiesToRemove,
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in source)
+        {
+            yield return RemoveProperties(item, removeSet);
+        }
+    }
+
+    /// <summary>
+    /// Removes specified properties from a single object.
+    /// </summary>
+    public static object RemoveProperties<T>(
+        T source,
+        HashSet<string> propertiesToRemove)
+    {
+        IDictionary<string, object?> expando = new ExpandoObject();
+
+        var props = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+        foreach (var prop in props)
+        {
+            if (!propertiesToRemove.Contains(prop.Name))
+            {
+                expando[prop.Name] = prop.GetValue(source);
+            }
+        }
+
+        return expando;
+    }
+}
+
+
+⸻
+
+✅ 2. Use It in Your Controller (for IEnumerable)
+
+[HttpGet]
+public async Task<IActionResult> GetDocuments()
+{
+    var role = User.FindFirst("role")?.Value ?? "";
+
+    IEnumerable<DocumentModel> docs = await _service.GetDocumentsAsync();
+
+    if (role == "FACOMP")
+    {
+        // remove CompanyId from every object in the list
+        var sanitized = ObjectSanitizer.RemoveProperties(docs, "CompanyId");
+        return Ok(sanitized);
+    }
+
+    // return full model for all other roles
+    return Ok(docs);
+}
+
+
+⸻
+
+🎯 Result
+
+For FACOMP (CompanyId removed completely)
+
+[
+  {
+    "documentId": 12,
+    "userName": "John",
+    "docName": "Report1",
+    "docTypeID": "PDF",
+    "version": 2,
+    "dateEntered": "2025-11-01",
+    "docTypeName": "Annual Report"
+  }
+]
+
+For other roles (CompanyId included)
+
+[
+  {
+    "documentId": 12,
+    "userName": "John",
+    "docName": "Report1",
+    "docTypeID": "PDF",
+    "version": 2,
+    "dateEntered": "2025-11-01",
+    "docTypeName": "Annual Report",
+    "companyId": "C789"
+  }
+]
+
+
+⸻
+
+⭐ Why this generic solution is powerful
+	•	Remove any property dynamically
+	•	No DTOs needed
+	•	Works for any model
+	•	Works for IEnumerable, arrays, or single objects
+	•	Very clean and maintainable
+	•	Zero impact on your model classes
+	•	Output stays perfectly formatted JSON
+
+⸻
+
+💬 Want the version that removes multiple properties based on role rules?
+
+Example:
+
+if (role == "FACOMP")
+    remove CompanyId;
+
+if (role == "TEMP")
+    remove DocTypeID, Version;
+
+if (role == "CLIENT")
+    remove UserName, CompanyId;
+
+I can provide a full reusable policy system if you want.
+
