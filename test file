@@ -1,0 +1,48 @@
+[HttpGet]
+public async Task<ActionResult<IEnumerable<DocumentModel>>> GetDocuments(
+    string currentUser, int numberOfDocuments)
+{
+    const string LogDetails = "Fetching document details";
+    var appName = securityContext.WMPAppShortName ?? "";
+
+    // Get user roles info
+    var resultRolesInfo = await userService.GetActiveUserInfo(currentUser, appName);
+
+    return await resultRolesInfo.MatchAsync<ActionResult<IEnumerable<DocumentModel>>>(
+        Left: e =>
+        {
+            var message = GetLogMessageForGetActiveUserInfo(e);
+            logger.LogError(message);
+            return StatusCode(ApiErrorCode.MapServiceErrorCode(e.ErrorDetails.Select(x => x.Code).First()));
+        },
+        RightAsync: async value =>
+        {
+            logger.LogInformation("{LogDetails} before call for username: {CurrentUser}", LogDetails, currentUser);
+
+            // Check for ModelState or parameter issues
+            return await IsThereSomeIssueWithModelStateOrParameter(currentUser, numberOfDocuments, LogDetails)
+                .MatchAsync(
+                    Some: badRequest => badRequest,
+                    None: async () =>
+                    {
+                        // 1. Call your service to get documents
+                        var documents = await documentService.GetDocumentDetails(currentUser, value, numberOfDocuments);
+
+                        // 2. Remove CompanyId for FACOMP users
+                        if (userRole == "FACOMP")
+                        {
+                            documents = ObjectSanitizer.RemoveProperties(documents, "CompanyId").ToList();
+                        }
+
+                        // 3. Return documents wrapped in your logging/error handler
+                        return await ExecuteServiceAndLogErrors<IEnumerable<DocumentModel>>(
+                            currentUser,
+                            numberOfDocuments,
+                            () => Task.FromResult(documents),
+                            LogDetails
+                        );
+                    }
+                );
+        }
+    );
+}
