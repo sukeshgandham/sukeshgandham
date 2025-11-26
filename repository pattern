@@ -1,0 +1,164 @@
+Great — here is the cleanest and easiest approach using System.Text.Json without wrappers, without creating two models, and without Newtonsoft.
+This approach uses a runtime-controlled ignore list, so you can hide any property on any model based on the user role.
+
+⸻
+
+✅ BEST SOLUTION — Runtime Property Hiding (Single Converter for All Models)
+
+✔ Only one converter needed
+✔ Works for any property, not just CompanyId
+✔ No duplicate DTOs
+✔ No nulls — property is completely removed
+✔ Cleanest and most maintainable design
+
+⸻
+
+⭐ Step 1 — Create a static “Ignore List” for properties
+
+Create a class to store which properties should be removed at runtime:
+
+public static class JsonIgnoreContext
+{
+    public static HashSet<string> PropertiesToIgnore { get; } = new();
+}
+
+
+⸻
+
+⭐ Step 2 — Create a custom converter for objects
+
+Create a file: SelectivePropertyIgnoreConverter.cs
+
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+public class SelectivePropertyIgnoreConverter<T> : JsonConverter<T> where T : class
+{
+    public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        // Normal deserialization
+        return JsonSerializer.Deserialize<T>(ref reader, options)!;
+    }
+
+    public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+
+        foreach (var prop in typeof(T).GetProperties())
+        {
+            string propName = prop.Name;
+
+            // Skip if this property is marked to be ignored
+            if (JsonIgnoreContext.PropertiesToIgnore.Contains(propName))
+                continue;
+
+            var propValue = prop.GetValue(value);
+            var jsonName = options.PropertyNamingPolicy?.ConvertName(propName) ?? propName;
+
+            writer.WritePropertyName(jsonName);
+            JsonSerializer.Serialize(writer, propValue, propValue?.GetType() ?? typeof(object), options);
+        }
+
+        writer.WriteEndObject();
+    }
+}
+
+
+⸻
+
+⭐ Step 3 — Register the converter globally for your model
+
+In Program.cs:
+
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new SelectivePropertyIgnoreConverter<DocumentModel>());
+    });
+
+
+⸻
+
+⭐ Step 4 — Your original model stays unchanged
+
+public class DocumentModel
+{
+    public int? DocumentId { get; set; }
+    public string? UserName { get; set; }
+    public string? DocName { get; set; }
+    public string? DocTypeID { get; set; }
+    public int? Version { get; set; }
+    public DateTime? DateEntered { get; set; }
+    public string? DocTypeName { get; set; }
+    public string? CompanyId { get; set; }
+}
+
+✔ Nothing to modify
+✔ No wrapper properties
+✔ This is the cleanest model
+
+⸻
+
+⭐ Step 5 — Service decides which properties to ignore
+
+public async Task<DocumentModel> GetDocumentAsync(string role)
+{
+    var model = await _repo.GetDocument();
+
+    // Clear ignore list before every use
+    JsonIgnoreContext.PropertiesToIgnore.Clear();
+
+    if (role == "FACOMP")
+    {
+        JsonIgnoreContext.PropertiesToIgnore.Add(nameof(DocumentModel.CompanyId));
+    }
+
+    return model;
+}
+
+
+⸻
+
+⭐ Output Behavior
+
+✔ For FACOMP user → CompanyId is removed
+
+{
+  "documentId": 1,
+  "userName": "John",
+  "docName": "Invoice.pdf",
+  "docTypeID": "INV",
+  "version": 1,
+  "dateEntered": "2025-01-01T00:00:00Z",
+  "docTypeName": "Invoice"
+}
+
+✔ For Normal user → all fields including CompanyId appear
+
+{
+  "documentId": 1,
+  "userName": "John",
+  "docName": "Invoice.pdf",
+  "docTypeID": "INV",
+  "version": 1,
+  "dateEntered": "2025-01-01T00:00:00Z",
+  "docTypeName": "Invoice",
+  "companyId": "A001"
+}
+
+
+⸻
+
+🎯 Why this is the BEST approach
+	•	No model pollution
+	•	No custom types or wrappers
+	•	No null hacks
+	•	No duplicate DTOs
+	•	No Newtonsoft dependency
+	•	Centralized logic for hiding fields
+	•	Works for ANY property of ANY model
+	•	100% clean controller
+
+⸻
+
+If you want, I can also give you a version that supports lists of models automatically (DocumentModel inside a List or array).
