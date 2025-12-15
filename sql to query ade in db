@@ -4,24 +4,27 @@ BEGIN
     SET NOCOUNT ON;
 
     /* ============================
-       1. Metadata dependencies
+       1. Exact metadata dependencies
        ============================ */
     SELECT
-        'METADATA_DEPENDENCY' AS Source,
-        referencing_schema_name AS SchemaName,
-        referencing_entity_name AS ObjectName,
-        referencing_class_desc AS ObjectType,
-        referenced_database_name AS ReferencedDatabase,
-        referenced_schema_name,
-        referenced_entity_name,
-        'EXACT' AS MatchType
-    FROM sys.sql_expression_dependencies
-    WHERE referenced_database_name = 'EDA'
+        'METADATA' AS Source,
+        s.name AS SchemaName,
+        o.name AS ObjectName,
+        o.type_desc AS ObjectType,
+        d.referenced_database_name AS ReferencedDatabase,
+        d.referenced_schema_name,
+        d.referenced_entity_name
+    FROM sys.sql_expression_dependencies d
+    JOIN sys.objects o
+        ON d.referencing_id = o.object_id
+    JOIN sys.schemas s
+        ON o.schema_id = s.schema_id
+    WHERE d.referenced_database_name = 'EDA'
 
     UNION ALL
 
     /* ============================
-       2. Dynamic SQL (Exact Match)
+       2. Dynamic SQL – exact patterns
        ============================ */
     SELECT
         'DYNAMIC_SQL' AS Source,
@@ -30,8 +33,7 @@ BEGIN
         o.type_desc AS ObjectType,
         'EDA' AS ReferencedDatabase,
         NULL,
-        NULL,
-        'PATTERN_SAFE' AS MatchType
+        NULL
     FROM sys.sql_modules m
     JOIN sys.objects o ON m.object_id = o.object_id
     JOIN sys.schemas s ON o.schema_id = s.schema_id
@@ -43,3 +45,4 @@ BEGIN
      OR m.definition LIKE '% UPDATE EDA.%';
 END;
 GO
+     
