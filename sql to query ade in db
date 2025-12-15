@@ -1,0 +1,43 @@
+CREATE OR ALTER PROCEDURE dbo.usp_ADE_Dependency_Report
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    /* =====================================================
+       1. Database Objects (SPs, Views, Functions, Triggers)
+       ===================================================== */
+    SELECT
+        o.type_desc AS ObjectType,
+        s.name AS SchemaName,
+        o.name AS ObjectName,
+        CASE
+            WHEN m.definition LIKE '%INSERT INTO%' THEN 'INSERT'
+            WHEN m.definition LIKE '%UPDATE%' THEN 'UPDATE'
+            WHEN m.definition LIKE '%DELETE FROM%' THEN 'DELETE'
+            WHEN m.definition LIKE '%SELECT%' THEN 'SELECT'
+            ELSE 'UNKNOWN'
+        END AS OperationType,
+        m.definition AS SqlText
+    FROM sys.sql_modules m
+    JOIN sys.objects o ON m.object_id = o.object_id
+    JOIN sys.schemas s ON o.schema_id = s.schema_id
+    WHERE m.definition LIKE '%ADE%'
+
+    UNION ALL
+
+    /* ============================
+       2. SQL Agent Job References
+       ============================ */
+    SELECT
+        'SQL_AGENT_JOB' AS ObjectType,
+        'msdb' AS SchemaName,
+        j.name AS ObjectName,
+        'EXECUTION' AS OperationType,
+        js.command AS SqlText
+    FROM msdb.dbo.sysjobs j
+    JOIN msdb.dbo.sysjobsteps js ON j.job_id = js.job_id
+    WHERE js.command LIKE '%ADE%'
+
+    ORDER BY ObjectType, SchemaName, ObjectName;
+END;
+GO
