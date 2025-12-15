@@ -1,43 +1,45 @@
-CREATE OR ALTER PROCEDURE dbo.usp_ADE_Dependency_Report
+CREATE OR ALTER PROCEDURE dbo.usp_EDA_Exact_Dependency_Report
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    /* =====================================================
-       1. Database Objects (SPs, Views, Functions, Triggers)
-       ===================================================== */
+    /* ============================
+       1. Metadata dependencies
+       ============================ */
     SELECT
-        o.type_desc AS ObjectType,
-        s.name AS SchemaName,
-        o.name AS ObjectName,
-        CASE
-            WHEN m.definition LIKE '%INSERT INTO%' THEN 'INSERT'
-            WHEN m.definition LIKE '%UPDATE%' THEN 'UPDATE'
-            WHEN m.definition LIKE '%DELETE FROM%' THEN 'DELETE'
-            WHEN m.definition LIKE '%SELECT%' THEN 'SELECT'
-            ELSE 'UNKNOWN'
-        END AS OperationType,
-        m.definition AS SqlText
-    FROM sys.sql_modules m
-    JOIN sys.objects o ON m.object_id = o.object_id
-    JOIN sys.schemas s ON o.schema_id = s.schema_id
-    WHERE m.definition LIKE '%ADE%'
+        'METADATA_DEPENDENCY' AS Source,
+        referencing_schema_name AS SchemaName,
+        referencing_entity_name AS ObjectName,
+        referencing_class_desc AS ObjectType,
+        referenced_database_name AS ReferencedDatabase,
+        referenced_schema_name,
+        referenced_entity_name,
+        'EXACT' AS MatchType
+    FROM sys.sql_expression_dependencies
+    WHERE referenced_database_name = 'EDA'
 
     UNION ALL
 
     /* ============================
-       2. SQL Agent Job References
+       2. Dynamic SQL (Exact Match)
        ============================ */
     SELECT
-        'SQL_AGENT_JOB' AS ObjectType,
-        'msdb' AS SchemaName,
-        j.name AS ObjectName,
-        'EXECUTION' AS OperationType,
-        js.command AS SqlText
-    FROM msdb.dbo.sysjobs j
-    JOIN msdb.dbo.sysjobsteps js ON j.job_id = js.job_id
-    WHERE js.command LIKE '%ADE%'
-
-    ORDER BY ObjectType, SchemaName, ObjectName;
+        'DYNAMIC_SQL' AS Source,
+        s.name AS SchemaName,
+        o.name AS ObjectName,
+        o.type_desc AS ObjectType,
+        'EDA' AS ReferencedDatabase,
+        NULL,
+        NULL,
+        'PATTERN_SAFE' AS MatchType
+    FROM sys.sql_modules m
+    JOIN sys.objects o ON m.object_id = o.object_id
+    JOIN sys.schemas s ON o.schema_id = s.schema_id
+    WHERE
+        m.definition LIKE '%[[]EDA[]]%'
+     OR m.definition LIKE '% FROM EDA.%'
+     OR m.definition LIKE '% JOIN EDA.%'
+     OR m.definition LIKE '% INTO EDA.%'
+     OR m.definition LIKE '% UPDATE EDA.%';
 END;
 GO
